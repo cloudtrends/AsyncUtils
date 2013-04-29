@@ -14,7 +14,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.util.concurrent.MoreExecutors.sameThreadExecutor;
 
-public class AsyncCommandBuilder<V> {
+public class CommandBuilder<V> {
 
   private final TimeLimiter limiter;
   private Optional<Executor> executor = Optional.of((Executor) sameThreadExecutor());
@@ -24,43 +24,44 @@ public class AsyncCommandBuilder<V> {
   private Optional<FutureFallback<V>> fallback = Optional.absent();
 
   @VisibleForTesting
-  AsyncCommandBuilder(TimeLimiter limiter) {
+  CommandBuilder(TimeLimiter limiter) {
     this.limiter = limiter;
   }
 
-  AsyncCommandBuilder() {
+  CommandBuilder() {
     this(new SimpleTimeLimiter());
   }
 
-  public static AsyncCommandBuilder newBuilder() {
-    return new AsyncCommandBuilder();
+  public static CommandBuilder newBuilder() {
+    return new CommandBuilder();
   }
 
-  public AsyncCommandBuilder call(Callable<V> callable) {
+  public CommandBuilder call(Callable<V> callable) {
     this.callable = Optional.of(checkNotNull(callable));
     return this;
   }
 
-  public AsyncCommandBuilder within(long duration, TimeUnit unit) {
+  public CommandBuilder within(long duration, TimeUnit unit) {
     this.unit = Optional.of(checkNotNull(unit));
     this.duration = Optional.of(checkNotNull(duration));
     return this;
   }
 
-  public AsyncCommandBuilder withFallback(FutureFallback<V> fallback) {
+  public CommandBuilder withFallback(FutureFallback<V> fallback) {
     this.fallback = Optional.of(checkNotNull(fallback));
     return this;
   }
 
-  public AsyncCommandBuilder onExecutor(Executor executor) {
+  public CommandBuilder onExecutor(Executor executor) {
     this.executor = Optional.of(checkNotNull(executor));
     return this;
   }
 
-  public AsyncCommand build() {
+  public AsyncCommand<V> buildAsync() {
     checkState(callable.isPresent());
     checkState(executor.isPresent());
-    final AsyncCommand<V> caller = new AsyncCommand(limiter, callable.get(), executor.get());
+    final DefaultAsyncCommand<V> caller =
+      new DefaultAsyncCommand(limiter, callable.get(), executor.get());
     if (unit.isPresent()) {
       caller.setTimeout(unit.get(), duration.get());
     }
@@ -68,6 +69,10 @@ public class AsyncCommandBuilder<V> {
       caller.setFallback(fallback.get());
     }
     return caller;
+  }
+
+  public Command<V> buildSync() {
+    return new SyncCommandWrapper<V>(buildAsync());
   }
 
 }
