@@ -3,6 +3,7 @@ package org.robotninjas.util;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
 import com.google.common.util.concurrent.FutureFallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.SimpleTimeLimiter;
 import com.google.common.util.concurrent.TimeLimiter;
 
@@ -72,7 +73,12 @@ public class CommandBuilder<V> {
   }
 
   public Command<V> buildSync() {
-    return new SyncCommandWrapper<V>(buildAsync());
+    return new Command<V>() {
+      @Override
+      public V execute() {
+        return Futures.getUnchecked(buildAsync().execute());
+      }
+    };
   }
 
 }
