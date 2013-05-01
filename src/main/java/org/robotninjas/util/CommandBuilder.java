@@ -2,17 +2,16 @@ package org.robotninjas.util;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Optional;
-import com.google.common.util.concurrent.FutureFallback;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.SimpleTimeLimiter;
-import com.google.common.util.concurrent.TimeLimiter;
+import com.google.common.util.concurrent.*;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.util.concurrent.MoreExecutors.listeningDecorator;
 import static com.google.common.util.concurrent.MoreExecutors.sameThreadExecutor;
 
 public class CommandBuilder<V> {
@@ -59,16 +58,21 @@ public class CommandBuilder<V> {
   }
 
   public AsyncCommand<V> buildAsync() {
+
     checkState(callable.isPresent());
     checkState(executor.isPresent());
+
     final DefaultAsyncCommand<V> caller =
       new DefaultAsyncCommand(limiter, callable.get(), executor.get());
-    if (unit.isPresent()) {
-      caller.setTimeout(unit.get(), duration.get());
+
+    if (unit.isPresent() && duration.isPresent()) {
+      caller.setTimeout(duration.get(), unit.get());
     }
+
     if (fallback.isPresent()) {
       caller.setFallback(fallback.get());
     }
+
     return caller;
   }
 
