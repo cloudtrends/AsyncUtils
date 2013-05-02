@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.google.common.util.concurrent.Futures.withFallback;
 
-public class DefaultAsyncCommand<V> implements AsyncCommand<V> {
+class DefaultAsyncCommand<V> implements AsyncCommand<V> {
 
   private final TimeLimiter limiter;
   private final Callable<V> callable;
