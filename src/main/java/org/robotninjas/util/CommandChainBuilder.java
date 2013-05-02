@@ -12,7 +12,7 @@ public class CommandChainBuilder {
 
   private final ImmutableList.Builder<AsyncCommand<?>> commandsBuilder = ImmutableList.builder();
 
-  public CommandChainBuilder andThen(AsyncCommand<?> command) {
+  public CommandChainBuilder then(AsyncCommand<?> command) {
     commandsBuilder.add(command);
     return this;
   }

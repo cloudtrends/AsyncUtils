@@ -5,6 +5,7 @@ import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import jsr166y.ForkJoinPool;
 
 import javax.annotation.concurrent.Immutable;
 import java.util.concurrent.*;
@@ -12,6 +13,7 @@ import java.util.concurrent.*;
 import static com.google.common.base.Throwables.propagate;
 import static com.google.common.util.concurrent.Futures.*;
 import static com.google.common.util.concurrent.MoreExecutors.sameThreadExecutor;
+import static java.util.concurrent.Executors.newFixedThreadPool;
 
 /**
  * Build a composition of any number of functions
@@ -79,7 +81,7 @@ public class FunctionCompositionBuilder<I, X, O> {
    *   the output of this step
    * @return a builder for the next step
    */
-  public <Y> FunctionCompositionBuilder<I, O, Y> andThen(final AsyncFunction<O, Y> f) {
+  public <Y> FunctionCompositionBuilder<I, O, Y> then(final AsyncFunction<O, Y> f) {
     return new FunctionCompositionBuilder<I, O, Y>(start, transform(end, f), executor);
   }
 
@@ -94,7 +96,7 @@ public class FunctionCompositionBuilder<I, X, O> {
    *   the output of this step
    * @return a builder for the next step
    */
-  public <Y> FunctionCompositionBuilder<I, O, Y> andThen(final AsyncFunction<O, Y> f, Executor e) {
+  public <Y> FunctionCompositionBuilder<I, O, Y> then(final AsyncFunction<O, Y> f, Executor e) {
     return new FunctionCompositionBuilder<I, O, Y>(start, transform(end, f, e), executor);
   }
 
@@ -107,7 +109,7 @@ public class FunctionCompositionBuilder<I, X, O> {
    *   the output of this step
    * @return a builder for the next step
    */
-  public <Y> FunctionCompositionBuilder<I, O, Y> andThen(final Function<O, Y> f) {
+  public <Y> FunctionCompositionBuilder<I, O, Y> then(final Function<O, Y> f) {
     return new FunctionCompositionBuilder<I, O, Y>(start, transform(end, f), executor);
   }
 
@@ -122,7 +124,7 @@ public class FunctionCompositionBuilder<I, X, O> {
    *   the output of this step
    * @return a builder for the next step
    */
-  public <Y> FunctionCompositionBuilder<I, O, Y> andThen(final Function<O, Y> f, Executor e) {
+  public <Y> FunctionCompositionBuilder<I, O, Y> then(final Function<O, Y> f, Executor e) {
     return new FunctionCompositionBuilder<I, O, Y>(start, transform(end, f, e), executor);
   }
 
@@ -160,66 +162,46 @@ public class FunctionCompositionBuilder<I, X, O> {
     };
   }
 
-  /**
-   * This is funny if you've seen "Dude Where's My Car"
-   *
-   * @return an asynchronous function representing the composition
-   */
-  public AsyncFunction<I, O> noAndThenAsync() {
-    return buildAsync();
-  }
-
-  /**
-   * This is funny if you've seen "Dude Where's My Car"
-   *
-   * @return a synchronous function representing the composition
-   */
-  public Function<I, O> noAndThen() {
-    return buildSync();
-  }
-
   public static void main(String[] args) throws Exception {
 
     // run some operations async
-    ExecutorService executor = new ForkJoinPool();
-    System.out.println(Thread.currentThread().getId());
+    final ExecutorService mainPool = new ForkJoinPool();
+    final ExecutorService fixedPool = newFixedThreadPool(1);
 
     // This is how you call all the things
-    AsyncFunction<Integer, String> f = FunctionCompositionBuilder.<Integer>builder(executor)
-      .andThen(new Function<Integer, Integer>() {
-        @Override
-        public Integer apply(Integer input) {
-          System.out.println(Thread.currentThread().getId());
-          return input - 1;
-        }
-      })
-      .andThen(new Function<Integer, Double>() {
-        @Override
-        public Double apply(Integer input) {
-          System.out.println(Thread.currentThread().getId());
-          return input * 2.0;
-        }
-      }, executor)
-      .andThen(new AsyncFunction<Double, String>() {
-        @Override
-        public ListenableFuture<String> apply(Double input) throws Exception {
-          System.out.println(Thread.currentThread().getId());
-          return immediateFuture(Double.toString(input));
-        }
-      })
-      .andThen(new AsyncFunction<String, String>() {
-        @Override
-        public ListenableFuture<String> apply(String input) throws Exception {
-          System.out.println(Thread.currentThread().getId());
-          return immediateFuture(input + " stuff");
-        }
-      }, executor)
-      .buildAsync();
+    final AsyncFunction<Integer, String> f =
+      FunctionCompositionBuilder.<Integer>builder(mainPool)
+        .then(new Function<Integer, Integer>() {
+          @Override
+          public Integer apply(Integer input) {
+            return input - 1;
+          }
+        })
+        .then(new Function<Integer, Double>() {
+          @Override
+          public Double apply(Integer input) {
+            return input * 2.0;
+          }
+        }, fixedPool)
+        .then(new AsyncFunction<Double, String>() {
+          @Override
+          public ListenableFuture<String> apply(Double input) throws Exception {
+            return immediateFuture(Double.toString(input));
+          }
+        })
+        .then(new AsyncFunction<String, String>() {
+          @Override
+          public ListenableFuture<String> apply(String input) throws Exception {
+            return immediateFuture(input + " stuff");
+          }
+        }, fixedPool)
+        .buildAsync();
 
     // used to wait for the result before shutting down the executor service
     final CountDownLatch latch = new CountDownLatch(1);
 
-    ListenableFuture<String> result = f.apply(2);
+    final ListenableFuture<String> result = f.apply(2);
+
     addCallback(result, new FutureCallback<String>() {
       @Override
       public void onSuccess(String result) {
@@ -234,7 +216,8 @@ public class FunctionCompositionBuilder<I, X, O> {
     });
 
     latch.await();
-    executor.shutdownNow();
+    mainPool.shutdownNow();
+    fixedPool.shutdownNow();
 
   }
 
