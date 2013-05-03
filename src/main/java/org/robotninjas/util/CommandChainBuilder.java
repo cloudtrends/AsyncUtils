@@ -18,8 +18,7 @@ public class CommandChainBuilder {
   }
 
   public AsyncCommand<?> buildChain() {
-    final ImmutableList<AsyncCommand<?>> commands = commandsBuilder.build();
-    return new ChainExecutor(commands.iterator());
+    return new ChainExecutor(commandsBuilder.build().iterator());
   }
 
   private static class ChainExecutor implements AsyncCommand<Void> {
