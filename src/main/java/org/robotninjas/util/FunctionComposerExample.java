@@ -7,6 +7,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import jsr166y.ForkJoinPool;
 
 import java.io.File;
+import java.net.URL;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -25,8 +26,8 @@ public class FunctionComposerExample {
     this.ioPool = ioPool;
   }
 
-  ListenableFuture<File> downloadFile(String file) {
-    return immediateFuture(new File(file));
+  ListenableFuture<File> downloadFile(URL file) {
+    return immediateFuture(new File("local/copy"));
   }
 
   AsyncFunction<String, List<String>> getFilesForUser() {
@@ -38,12 +39,21 @@ public class FunctionComposerExample {
     };
   }
 
-  AsyncFunction<List<String>, List<File>> downloadFiles() {
-    return new AsyncFunction<List<String>, List<File>>() {
+  AsyncFunction<List<String>, List<URL>> locateFiles() {
+    return new AsyncFunction<List<String>, List<URL>>() {
       @Override
-      public ListenableFuture<List<File>> apply(List<String> input) throws Exception {
+      public ListenableFuture<List<URL>> apply(List<String> input) throws Exception {
+        return immediateFuture((List<URL>) Lists.<URL>newArrayList());
+      }
+    };
+  }
+
+  AsyncFunction<List<URL>, List<File>> downloadFiles() {
+    return new AsyncFunction<List<URL>, List<File>>() {
+      @Override
+      public ListenableFuture<List<File>> apply(List<URL> input) throws Exception {
         ImmutableList.Builder futures = ImmutableList.builder();
-        for (String file : input) {
+        for (URL file : input) {
           futures.add(downloadFile(file));
         }
         return allAsList(futures.build());
@@ -64,6 +74,7 @@ public class FunctionComposerExample {
     AsyncFunction<String, File> f =
       FunctionComposer.<String>builder(mainPool)
         .then(getFilesForUser())
+        .then(locateFiles())
         .then(downloadFiles())
         .then(mergeFiles(), ioPool)
         .buildAsync();
