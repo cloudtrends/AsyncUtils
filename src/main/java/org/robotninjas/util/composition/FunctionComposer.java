@@ -23,7 +23,7 @@ import static java.util.concurrent.Executors.newFixedThreadPool;
  *   The composition and the next step's output
  */
 @Immutable
-public class FunctionComposer<I, X, O> implements Composer<I, X, O> {
+public class FunctionComposer<I, X, O> {
 
   private final SettableFuture<I> start;
   private final ListenableFuture<O> end;

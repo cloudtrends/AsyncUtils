@@ -1,10 +1,11 @@
-package org.robotninjas.util.composition;
+package org.robotninjas.util.examples;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.ListenableFuture;
 import jsr166y.ForkJoinPool;
+import org.robotninjas.util.composition.FunctionComposer;
 
 import java.io.File;
 import java.net.URL;

@@ -44,7 +44,7 @@ class CallableFunction<V> implements Function<Callable<V>, Callable<V>> {
     }
 
     if (retryer.isPresent()) {
-      callable = retryer.get().wrap(callable);
+      return retryer.get().wrap(callable);
     }
 
     return callable;
