@@ -5,7 +5,7 @@ import com.google.common.base.Function;
 import com.google.common.util.concurrent.FutureFallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
-import org.robotninjas.util.callable.CallableBuilder;
+import org.robotninjas.util.callable.DecoratedCallableBuilder;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
@@ -16,7 +16,7 @@ import static com.google.common.util.concurrent.MoreExecutors.sameThreadExecutor
 
 public class CommandBuilder<V> {
 
-  private final CallableBuilder<V> callableBuilder = CallableBuilder.newBuilder();
+  private final DecoratedCallableBuilder<V> callableBuilder = DecoratedCallableBuilder.newBuilder();
   private Executor executor = sameThreadExecutor();
 
   public static <V> CommandBuilder<V> builder() {

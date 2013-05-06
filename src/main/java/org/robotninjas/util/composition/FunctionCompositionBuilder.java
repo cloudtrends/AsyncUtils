@@ -23,7 +23,7 @@ import static java.util.concurrent.Executors.newFixedThreadPool;
  *   The composition and the next step's output
  */
 @Immutable
-public class FunctionComposer<I, X, O> {
+public class FunctionCompositionBuilder<I, X, O> {
 
   private final SettableFuture<I> start;
   private final ListenableFuture<O> end;
@@ -37,7 +37,7 @@ public class FunctionComposer<I, X, O> {
    * @param end
    *   the ListenableFuture which returns the final result
    */
-  FunctionComposer(SettableFuture<I> start, ListenableFuture<O> end, Executor executor) {
+  FunctionCompositionBuilder(SettableFuture<I> start, ListenableFuture<O> end, Executor executor) {
     this.start = start;
     this.end = end;
     this.executor = executor;
@@ -50,9 +50,9 @@ public class FunctionComposer<I, X, O> {
    *   the input to the composed function
    * @return a begin for the next step of the composition
    */
-  public static <Z> FunctionComposer<Z, Z, Z> builder() {
+  public static <Z> FunctionCompositionBuilder<Z, Z, Z> builder() {
     final SettableFuture<Z> begin = SettableFuture.create();
-    return new FunctionComposer<Z, Z, Z>(begin, begin, sameThreadExecutor());
+    return new FunctionCompositionBuilder<Z, Z, Z>(begin, begin, sameThreadExecutor());
   }
 
   /**
@@ -64,9 +64,9 @@ public class FunctionComposer<I, X, O> {
    *   the input to the composed function
    * @return a begin for the next step of the composition
    */
-  public static <Z> FunctionComposer<Z, Z, Z> builder(Executor e) {
+  public static <Z> FunctionCompositionBuilder<Z, Z, Z> builder(Executor e) {
     final SettableFuture<Z> begin = SettableFuture.create();
-    return new FunctionComposer<Z, Z, Z>(begin, begin, e);
+    return new FunctionCompositionBuilder<Z, Z, Z>(begin, begin, e);
   }
 
   /**
@@ -78,36 +78,8 @@ public class FunctionComposer<I, X, O> {
    *   the output of this step
    * @return a begin for the next step
    */
-  public <Y> FunctionComposer<I, O, Y> transform(final AsyncFunction<O, Y> f) {
-    return new FunctionComposer<I, O, Y>(start, Futures.transform(end, f), executor);
-  }
-
-  /**
-   * Add a step to the computation
-   *
-   * @param f
-   *   this step
-   * @param e
-   *   an executor on which to perform this step
-   * @param <Y>
-   *   the output of this step
-   * @return a begin for the next step
-   */
-  public <Y> FunctionComposer<I, O, Y> transform(final AsyncFunction<O, Y> f, Executor e) {
-    return new FunctionComposer<I, O, Y>(start, Futures.transform(end, f, e), executor);
-  }
-
-  /**
-   * Add a step to the computation
-   *
-   * @param f
-   *   this step
-   * @param <Y>
-   *   the output of this step
-   * @return a begin for the next step
-   */
-  public <Y> FunctionComposer<I, O, Y> transform(final Function<O, Y> f) {
-    return new FunctionComposer<I, O, Y>(start, Futures.transform(end, f), executor);
+  public <Y> FunctionCompositionBuilder<I, O, Y> transform(final AsyncFunction<O, Y> f) {
+    return new FunctionCompositionBuilder<I, O, Y>(start, Futures.transform(end, f), executor);
   }
 
   /**
@@ -121,8 +93,36 @@ public class FunctionComposer<I, X, O> {
    *   the output of this step
    * @return a begin for the next step
    */
-  public <Y> FunctionComposer<I, O, Y> transform(final Function<O, Y> f, Executor e) {
-    return new FunctionComposer<I, O, Y>(start, Futures.transform(end, f, e), executor);
+  public <Y> FunctionCompositionBuilder<I, O, Y> transform(final AsyncFunction<O, Y> f, Executor e) {
+    return new FunctionCompositionBuilder<I, O, Y>(start, Futures.transform(end, f, e), executor);
+  }
+
+  /**
+   * Add a step to the computation
+   *
+   * @param f
+   *   this step
+   * @param <Y>
+   *   the output of this step
+   * @return a begin for the next step
+   */
+  public <Y> FunctionCompositionBuilder<I, O, Y> transform(final Function<O, Y> f) {
+    return new FunctionCompositionBuilder<I, O, Y>(start, Futures.transform(end, f), executor);
+  }
+
+  /**
+   * Add a step to the computation
+   *
+   * @param f
+   *   this step
+   * @param e
+   *   an executor on which to perform this step
+   * @param <Y>
+   *   the output of this step
+   * @return a begin for the next step
+   */
+  public <Y> FunctionCompositionBuilder<I, O, Y> transform(final Function<O, Y> f, Executor e) {
+    return new FunctionCompositionBuilder<I, O, Y>(start, Futures.transform(end, f, e), executor);
   }
 
   /**
@@ -167,7 +167,7 @@ public class FunctionComposer<I, X, O> {
 
     // This is how you call all the things
     final AsyncFunction<Integer, String> f =
-      FunctionComposer.<Integer>builder(mainPool)
+      FunctionCompositionBuilder.<Integer>builder(mainPool)
         .transform(new Function<Integer, Integer>() {
           @Override
           public Integer apply(Integer input) {

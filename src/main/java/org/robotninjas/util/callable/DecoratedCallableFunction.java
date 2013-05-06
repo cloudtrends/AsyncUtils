@@ -9,14 +9,14 @@ import javax.annotation.Nullable;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-class CallableFunction<V> implements Function<Callable<V>, Callable<V>> {
+class DecoratedCallableFunction<V> implements Function<Callable<V>, Callable<V>> {
 
   private final TimeLimiter limiter;
   private Optional<TimeUnit> unit = Optional.absent();
   private Optional<Long> duration = Optional.absent();
   private Optional<Retryer<V>> retryer = Optional.absent();
 
-  CallableFunction(TimeLimiter limiter) {
+  DecoratedCallableFunction(TimeLimiter limiter) {
     this.limiter = limiter;
   }
 

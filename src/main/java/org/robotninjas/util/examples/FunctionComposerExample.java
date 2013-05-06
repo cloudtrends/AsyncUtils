@@ -5,7 +5,7 @@ import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.ListenableFuture;
 import jsr166y.ForkJoinPool;
-import org.robotninjas.util.composition.FunctionComposer;
+import org.robotninjas.util.composition.FunctionCompositionBuilder;
 
 import java.io.File;
 import java.net.URL;
@@ -73,7 +73,7 @@ public class FunctionComposerExample {
 
   public ListenableFuture<File> getMergedFileForUser(String user) throws Exception {
     AsyncFunction<String, File> f =
-      FunctionComposer.<String>builder(mainPool)
+      FunctionCompositionBuilder.<String>builder(mainPool)
         .transform(getFilesForUser())
         .transform(locateFiles())
         .transform(downloadFiles())

@@ -19,7 +19,7 @@ import static com.google.common.util.concurrent.MoreExecutors.sameThreadExecutor
  *   The composition and the next step's output
  */
 @Immutable
-public class ListenableComposer<O> {
+public class ListenableCompositionBuilder<O> {
 
   private final ListenableFuture<?> start;
   private final ListenableFuture<O> end;
@@ -33,7 +33,7 @@ public class ListenableComposer<O> {
    * @param end
    *   the ListenableFuture which returns the final result
    */
-  ListenableComposer(ListenableFuture<?> start, ListenableFuture<O> end, Executor executor) {
+  ListenableCompositionBuilder(ListenableFuture<?> start, ListenableFuture<O> end, Executor executor) {
     this.start = start;
     this.end = end;
     this.executor = executor;
@@ -46,8 +46,8 @@ public class ListenableComposer<O> {
    *   the input to the composed function
    * @return a begin for the next step of the composition
    */
-  public static <Z> ListenableComposer<Z> begin(ListenableFuture<Z> begin) {
-    return new ListenableComposer<Z>(begin, begin, sameThreadExecutor());
+  public static <Z> ListenableCompositionBuilder<Z> begin(ListenableFuture<Z> begin) {
+    return new ListenableCompositionBuilder<Z>(begin, begin, sameThreadExecutor());
   }
 
   /**
@@ -59,8 +59,8 @@ public class ListenableComposer<O> {
    *   the input to the composed function
    * @return a begin for the next step of the composition
    */
-  public static <Z> ListenableComposer<Z> begin(ListenableFuture<Z> begin, Executor e) {
-    return new ListenableComposer<Z>(begin, begin, e);
+  public static <Z> ListenableCompositionBuilder<Z> begin(ListenableFuture<Z> begin, Executor e) {
+    return new ListenableCompositionBuilder<Z>(begin, begin, e);
   }
 
   /**
@@ -72,36 +72,8 @@ public class ListenableComposer<O> {
    *   the output of this step
    * @return a begin for the next step
    */
-  public <Y> ListenableComposer<Y> transform(final AsyncFunction<O, Y> f) {
-    return new ListenableComposer<Y>(start, Futures.transform(end, f), executor);
-  }
-
-  /**
-   * Add a step to the computation
-   *
-   * @param f
-   *   this step
-   * @param e
-   *   an executor on which to perform this step
-   * @param <Y>
-   *   the output of this step
-   * @return a begin for the next step
-   */
-  public <Y> ListenableComposer<Y> transform(final AsyncFunction<O, Y> f, Executor e) {
-    return new ListenableComposer<Y>(start, Futures.transform(end, f, e), executor);
-  }
-
-  /**
-   * Add a step to the computation
-   *
-   * @param f
-   *   this step
-   * @param <Y>
-   *   the output of this step
-   * @return a begin for the next step
-   */
-  public <Y> ListenableComposer<Y> transform(final Function<O, Y> f) {
-    return new ListenableComposer<Y>(start, Futures.transform(end, f), executor);
+  public <Y> ListenableCompositionBuilder<Y> transform(final AsyncFunction<O, Y> f) {
+    return new ListenableCompositionBuilder<Y>(start, Futures.transform(end, f), executor);
   }
 
   /**
@@ -115,8 +87,36 @@ public class ListenableComposer<O> {
    *   the output of this step
    * @return a begin for the next step
    */
-  public <Y> ListenableComposer<Y> transform(final Function<O, Y> f, Executor e) {
-    return new ListenableComposer<Y>(start, Futures.transform(end, f, e), executor);
+  public <Y> ListenableCompositionBuilder<Y> transform(final AsyncFunction<O, Y> f, Executor e) {
+    return new ListenableCompositionBuilder<Y>(start, Futures.transform(end, f, e), executor);
+  }
+
+  /**
+   * Add a step to the computation
+   *
+   * @param f
+   *   this step
+   * @param <Y>
+   *   the output of this step
+   * @return a begin for the next step
+   */
+  public <Y> ListenableCompositionBuilder<Y> transform(final Function<O, Y> f) {
+    return new ListenableCompositionBuilder<Y>(start, Futures.transform(end, f), executor);
+  }
+
+  /**
+   * Add a step to the computation
+   *
+   * @param f
+   *   this step
+   * @param e
+   *   an executor on which to perform this step
+   * @param <Y>
+   *   the output of this step
+   * @return a begin for the next step
+   */
+  public <Y> ListenableCompositionBuilder<Y> transform(final Function<O, Y> f, Executor e) {
+    return new ListenableCompositionBuilder<Y>(start, Futures.transform(end, f, e), executor);
   }
 
   /**
@@ -131,7 +131,7 @@ public class ListenableComposer<O> {
   public static void main(String[] args) throws ExecutionException, InterruptedException {
 
     SettableFuture<String> begin = SettableFuture.create();
-    ListenableFuture<Double> end = ListenableComposer.begin(begin)
+    ListenableFuture<Double> end = ListenableCompositionBuilder.begin(begin)
       .transform(new AsyncFunction<String, Integer>() {
         @Override
         public ListenableFuture<Integer> apply(String input) throws Exception {
