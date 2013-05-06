@@ -3,7 +3,7 @@ package org.robotninjas.util.command;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.ListenableFuture;
 
-public class CommandToFunctionAdapter<O> implements AsyncFunction<Void, O> {
+class CommandToFunctionAdapter<O> implements AsyncFunction<Void, O> {
 
   private final AsyncCommand<O> command;
 
