@@ -1,10 +1,7 @@
-package org.robotninjas.util;
+package org.robotninjas.util.composition;
 
 import com.google.common.base.Function;
-import com.google.common.util.concurrent.AsyncFunction;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
+import com.google.common.util.concurrent.*;
 import jsr166y.ForkJoinPool;
 
 import javax.annotation.concurrent.Immutable;
@@ -26,14 +23,14 @@ import static java.util.concurrent.Executors.newFixedThreadPool;
  *   The composition and the next step's output
  */
 @Immutable
-public class FunctionComposer<I, X, O> {
+public class FunctionComposer<I, X, O> implements Composer<I, X, O> {
 
   private final SettableFuture<I> start;
   private final ListenableFuture<O> end;
   private final Executor executor;
 
   /**
-   * Construct a builder for the next step
+   * Construct a begin for the next step
    *
    * @param start
    *   the composition's starting settable future
@@ -47,11 +44,11 @@ public class FunctionComposer<I, X, O> {
   }
 
   /**
-   * Construct an initial builder
+   * Construct an initial begin
    *
    * @param <Z>
    *   the input to the composed function
-   * @return a builder for the next step of the coposition
+   * @return a begin for the next step of the composition
    */
   public static <Z> FunctionComposer<Z, Z, Z> builder() {
     final SettableFuture<Z> begin = SettableFuture.create();
@@ -59,13 +56,13 @@ public class FunctionComposer<I, X, O> {
   }
 
   /**
-   * Construct an initial builder
+   * Construct an initial begin
    *
    * @param e
-   *   an executor to runn all transform operations
+   *   an executor to run all transform operations
    * @param <Z>
    *   the input to the composed function
-   * @return a builder for the next step of the coposition
+   * @return a begin for the next step of the composition
    */
   public static <Z> FunctionComposer<Z, Z, Z> builder(Executor e) {
     final SettableFuture<Z> begin = SettableFuture.create();
@@ -79,10 +76,10 @@ public class FunctionComposer<I, X, O> {
    *   this step
    * @param <Y>
    *   the output of this step
-   * @return a builder for the next step
+   * @return a begin for the next step
    */
-  public <Y> FunctionComposer<I, O, Y> then(final AsyncFunction<O, Y> f) {
-    return new FunctionComposer<I, O, Y>(start, transform(end, f), executor);
+  public <Y> FunctionComposer<I, O, Y> transform(final AsyncFunction<O, Y> f) {
+    return new FunctionComposer<I, O, Y>(start, Futures.transform(end, f), executor);
   }
 
   /**
@@ -94,10 +91,10 @@ public class FunctionComposer<I, X, O> {
    *   an executor on which to perform this step
    * @param <Y>
    *   the output of this step
-   * @return a builder for the next step
+   * @return a begin for the next step
    */
-  public <Y> FunctionComposer<I, O, Y> then(final AsyncFunction<O, Y> f, Executor e) {
-    return new FunctionComposer<I, O, Y>(start, transform(end, f, e), executor);
+  public <Y> FunctionComposer<I, O, Y> transform(final AsyncFunction<O, Y> f, Executor e) {
+    return new FunctionComposer<I, O, Y>(start, Futures.transform(end, f, e), executor);
   }
 
   /**
@@ -107,10 +104,10 @@ public class FunctionComposer<I, X, O> {
    *   this step
    * @param <Y>
    *   the output of this step
-   * @return a builder for the next step
+   * @return a begin for the next step
    */
-  public <Y> FunctionComposer<I, O, Y> then(final Function<O, Y> f) {
-    return new FunctionComposer<I, O, Y>(start, transform(end, f), executor);
+  public <Y> FunctionComposer<I, O, Y> transform(final Function<O, Y> f) {
+    return new FunctionComposer<I, O, Y>(start, Futures.transform(end, f), executor);
   }
 
   /**
@@ -122,14 +119,14 @@ public class FunctionComposer<I, X, O> {
    *   an executor on which to perform this step
    * @param <Y>
    *   the output of this step
-   * @return a builder for the next step
+   * @return a begin for the next step
    */
-  public <Y> FunctionComposer<I, O, Y> then(final Function<O, Y> f, Executor e) {
-    return new FunctionComposer<I, O, Y>(start, transform(end, f, e), executor);
+  public <Y> FunctionComposer<I, O, Y> transform(final Function<O, Y> f, Executor e) {
+    return new FunctionComposer<I, O, Y>(start, Futures.transform(end, f, e), executor);
   }
 
   /**
-   * Build an asynchronous function which is a composition of the functions added via the builder
+   * Build an asynchronous function which is a composition of the functions added via the begin
    *
    * @return an asynchronous function representing the composition
    */
@@ -144,7 +141,7 @@ public class FunctionComposer<I, X, O> {
   }
 
   /**
-   * Build a synchronous function which is a composition of the functions added via the builder.
+   * Build a synchronous function which is a composition of the functions added via the begin.
    *
    * @return a synchronous function representing the composition
    */
@@ -171,25 +168,25 @@ public class FunctionComposer<I, X, O> {
     // This is how you call all the things
     final AsyncFunction<Integer, String> f =
       FunctionComposer.<Integer>builder(mainPool)
-        .then(new Function<Integer, Integer>() {
+        .transform(new Function<Integer, Integer>() {
           @Override
           public Integer apply(Integer input) {
             return input - 1;
           }
         })
-        .then(new Function<Integer, Double>() {
+        .transform(new Function<Integer, Double>() {
           @Override
           public Double apply(Integer input) {
             return input * 2.0;
           }
         }, fixedPool)
-        .then(new AsyncFunction<Double, String>() {
+        .transform(new AsyncFunction<Double, String>() {
           @Override
           public ListenableFuture<String> apply(Double input) throws Exception {
             return immediateFuture(Double.toString(input));
           }
         })
-        .then(new AsyncFunction<String, String>() {
+        .transform(new AsyncFunction<String, String>() {
           @Override
           public ListenableFuture<String> apply(String input) throws Exception {
             return immediateFuture(input + " stuff");

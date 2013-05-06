@@ -1,4 +1,4 @@
-package org.robotninjas.util;
+package org.robotninjas.util.composition;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -73,10 +73,10 @@ public class FunctionComposerExample {
   public ListenableFuture<File> getMergedFileForUser(String user) throws Exception {
     AsyncFunction<String, File> f =
       FunctionComposer.<String>builder(mainPool)
-        .then(getFilesForUser())
-        .then(locateFiles())
-        .then(downloadFiles())
-        .then(mergeFiles(), ioPool)
+        .transform(getFilesForUser())
+        .transform(locateFiles())
+        .transform(downloadFiles())
+        .transform(mergeFiles(), ioPool)
         .buildAsync();
     return f.apply(user);
   }
