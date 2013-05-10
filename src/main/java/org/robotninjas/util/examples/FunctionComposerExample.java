@@ -47,7 +47,7 @@ public class FunctionComposerExample {
     return immediateFuture(new File("local/copy"));
   }
 
-  AsyncFunction<String, List<String>> getFilesForUser() {
+  AsyncFunction<String, List<String>> lookupFiles() {
     return new AsyncFunction<String, List<String>>() {
       @Override
       public ListenableFuture<List<String>> apply(String input) throws Exception {
@@ -91,17 +91,17 @@ public class FunctionComposerExample {
     };
   }
 
-  AsyncFunction<List<File>, Void> logFiles() {
-    return new AsyncFunction<List<File>, Void>() {
+  AsyncFunction<List<File>, List<File>> backupFiles() {
+    return new AsyncFunction<List<File>, List<File>>() {
       @Override
-      public ListenableFuture<Void> apply(List<File> input) throws Exception {
+      public ListenableFuture<List<File>> apply(List<File> input) throws Exception {
         System.out.println("5");
-        return immediateFuture(null);
+        return immediateFuture((List<File>)Lists.newArrayList());
       }
     };
   }
 
-  AsyncFunction<File, File> copyFile(final String name) {
+  AsyncFunction<File, File> copyFile(final String name, final String extension) {
     return new AsyncFunction<File, File>() {
       @Override
       public ListenableFuture<File> apply(File input) throws Exception {
@@ -115,15 +115,13 @@ public class FunctionComposerExample {
 
     AsyncFunction<String, List<File>> f =
       FunctionComposition.<String>builder(mainPool)
-        .transform(getFilesForUser())
+        .transform(lookupFiles())
         .transform(locateFiles())
         .transform(downloadFiles())
-        .fork(FunctionComposition.<List<File>>builder(ioPool)
-          .transform(logFiles()))
-        .fork(logFiles())
+        .fork(backupFiles())
         .transform(mergeFiles(), ioPool)
-        .scatter(copyFile("1"), copyFile("2"), copyFile("3"))
-        .buildAsync();
+        .allAsList(copyFile("1", "tmp1"), copyFile("2", "tmp2"), copyFile("3", "tmp3"))
+        .buildAsyncFunction();
 
     return f.apply(user);
   }

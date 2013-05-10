@@ -44,7 +44,7 @@ import static com.google.common.util.concurrent.MoreExecutors.sameThreadExecutor
  *   The composition and the next step's output
  */
 @Immutable
-public class FunctionComposition<I, X, O> {
+public class FunctionComposition<I, X, O> implements Composition<I, X, O> {
 
   private final Executor executor;
   private final ImmutableList<Stage> stages;
@@ -100,17 +100,30 @@ public class FunctionComposition<I, X, O> {
     return fork(Arrays.asList(f));
   }
 
-  public <Y, Z extends List<Y>> FunctionComposition<I, X, Z> scatter(Iterable<AsyncFunction<O, Y>> f, Executor e) {
-    ImmutableList<Stage> next = addStage(stages, new ScatterStage(f, executor));
+  public <Y, Z extends List<Y>> FunctionComposition<I, X, Z> allAsList(Iterable<AsyncFunction<O, Y>> f, Executor e) {
+    ImmutableList<Stage> next = addStage(stages, new AllAsListStage(f, executor));
     return new FunctionComposition<I, X, Z>(next, e);
   }
 
-  public <Y, Z extends List<Y>> FunctionComposition<I, X, Z> scatter(Iterable<AsyncFunction<O, Y>> f) {
-    return scatter(f, executor);
+  public <Y, Z extends List<Y>> FunctionComposition<I, X, Z> allAsList(Iterable<AsyncFunction<O, Y>> f) {
+    return allAsList(f, executor);
   }
 
-  public <Y, Z extends List<Y>> FunctionComposition<I, X, Z> scatter(AsyncFunction<O, Y>... f) {
-    return scatter(Arrays.asList(f));
+  public <Y, Z extends List<Y>> FunctionComposition<I, X, Z> allAsList(AsyncFunction<O, Y>... f) {
+    return allAsList(Arrays.asList(f));
+  }
+
+  public <Y, Z extends List<Y>> FunctionComposition<I, X, Z> successfulAsList(Iterable<AsyncFunction<O, Y>> f, Executor e) {
+    ImmutableList<Stage> next = addStage(stages, new SuccessfulAsListStage(f, executor));
+    return new FunctionComposition<I, X, Z>(next, e);
+  }
+
+  public <Y, Z extends List<Y>> FunctionComposition<I, X, Z> successfulAsList(Iterable<AsyncFunction<O, Y>> f) {
+    return allAsList(f, executor);
+  }
+
+  public <Y, Z extends List<Y>> FunctionComposition<I, X, Z> successfulAsList(AsyncFunction<O, Y>... f) {
+    return allAsList(Arrays.asList(f));
   }
 
   private ImmutableList<Stage> addStage(ImmutableList<Stage> stages, Stage stage) {
@@ -118,20 +131,24 @@ public class FunctionComposition<I, X, O> {
     return builder.addAll(stages).add(stage).build();
   }
 
-  public AsyncFunction<I, O> buildAsync() {
-
-    final SettableFuture<I> start = SettableFuture.create();
+  private ListenableFuture<O> buildChain(ListenableFuture<I> start) {
     final Iterator<Stage> itr = stages.iterator();
+    final Stage firstStage = itr.next();
+    ListenableFuture end = firstStage.transform(start);
+    while (itr.hasNext()) {
+      final Stage nextStage = itr.next();
+      end = nextStage.transform(end);
+    }
+    return end;
+  }
+
+  public AsyncFunction<I, O> buildAsyncFunction() {
 
     return new AsyncFunction<I, O>() {
       @Override
       public ListenableFuture<O> apply(I input) throws Exception {
-        final Stage firstStage = itr.next();
-        ListenableFuture end = firstStage.transform(start);
-        while (itr.hasNext()) {
-          final Stage nextStage = itr.next();
-          end = nextStage.transform(end);
-        }
+        final SettableFuture<I> start = SettableFuture.create();
+        ListenableFuture<O> end = buildChain(start);
         start.set(input);
         return end;
       }
@@ -139,18 +156,22 @@ public class FunctionComposition<I, X, O> {
 
   }
 
-  public Function<I, O> buildSync() {
+  public Function<I, O> buildFunction() {
     return new Function<I, O>() {
       @Nullable
       @Override
       public O apply(@Nullable I input) {
         try {
-          return buildAsync().apply(input).get();
+          return buildAsyncFunction().apply(input).get();
         } catch (Exception e) {
           throw propagate(e);
         }
       }
     };
+  }
+
+  public ListenableFuture<O> buildFrom(ListenableFuture<I> start) {
+    return buildChain(start);
   }
 
   private interface Stage<I, O> {
@@ -202,7 +223,7 @@ public class FunctionComposition<I, X, O> {
     @Override
     public ListenableFuture<O> transform(ListenableFuture<O> f) {
       //TODO do something with result
-      Futures.transform(f, builder.buildAsync(), executor);
+      Futures.transform(f, builder.buildAsyncFunction(), executor);
       return f;
     }
   }
@@ -228,12 +249,12 @@ public class FunctionComposition<I, X, O> {
     }
   }
 
-  private static class ScatterStage<I, O> implements Stage {
+  private static class AllAsListStage<I, O> implements Stage {
 
     private final Iterable<AsyncFunction<I, O>> funcs;
     private final Executor executor;
 
-    private ScatterStage(Iterable<AsyncFunction<I, O>> funcs, Executor executor) {
+    private AllAsListStage(Iterable<AsyncFunction<I, O>> funcs, Executor executor) {
       this.funcs = funcs;
       this.executor = executor;
     }
@@ -248,6 +269,31 @@ public class FunctionComposition<I, X, O> {
             futures.add(f.apply(input));
           }
           return Futures.allAsList(futures);
+        }
+      });
+    }
+  }
+
+  private static class SuccessfulAsListStage<I, O> implements Stage {
+
+    private final Iterable<AsyncFunction<I, O>> funcs;
+    private final Executor executor;
+
+    private SuccessfulAsListStage(Iterable<AsyncFunction<I, O>> funcs, Executor executor) {
+      this.funcs = funcs;
+      this.executor = executor;
+    }
+
+    @Override
+    public ListenableFuture transform(ListenableFuture f) {
+      return Futures.transform(f, new AsyncFunction<I, O>() {
+        @Override
+        public ListenableFuture apply(I input) throws Exception {
+          final List<ListenableFuture<O>> futures = Lists.newArrayList();
+          for (AsyncFunction f : funcs) {
+            futures.add(f.apply(input));
+          }
+          return Futures.successfulAsList(futures);
         }
       });
     }
