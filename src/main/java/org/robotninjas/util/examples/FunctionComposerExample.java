@@ -96,7 +96,7 @@ public class FunctionComposerExample {
       @Override
       public ListenableFuture<List<File>> apply(List<File> input) throws Exception {
         System.out.println("5");
-        return immediateFuture((List<File>)Lists.newArrayList());
+        return immediateFuture((List<File>)Lists.<File>newArrayList());
       }
     };
   }
